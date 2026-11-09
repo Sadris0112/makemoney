@@ -13,6 +13,17 @@ const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
+// CORS & Preflight headers for Cloudflare / Proxy / Tunnel deployment
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Helper to determine market prefix for China A/B/BSE stocks
 export function getSymbol(rawCode: string): string {
   const code = rawCode.trim().toLowerCase();
@@ -664,9 +675,21 @@ app.get('/api/stock/statements', async (req, res) => {
   }
 });
 
-// 4. Batch Stock Financials & Cross-Comparison
-app.post('/api/stock/batch', async (req, res) => {
-  const { codes, year } = req.body;
+// 4. Batch Stock Financials & Cross-Comparison (Supports both POST and GET to prevent 405 on static CDN/Cloudflare)
+app.all('/api/stock/batch', async (req, res) => {
+  let codes = req.body?.codes;
+  let year = req.body?.year;
+
+  if (req.method === 'GET' || !codes) {
+    const rawCodes = req.query.codes ? String(req.query.codes) : '';
+    if (rawCodes) {
+      codes = rawCodes.split(/[,+ ]/).map((s: string) => s.trim()).filter(Boolean);
+    }
+    if (req.query.year) {
+      year = String(req.query.year);
+    }
+  }
+
   if (!Array.isArray(codes) || codes.length === 0) {
     return res.status(400).json({ success: false, error: '请提供股票代码列表' });
   }

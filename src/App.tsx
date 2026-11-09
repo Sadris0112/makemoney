@@ -61,16 +61,42 @@ export default function App() {
     setError(null);
 
     try {
-      const res = await fetch('/api/stock/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          codes: selectedCodes,
-          year: selectedYear || undefined,
-        }),
-      });
+      let res: Response;
+      try {
+        res = await fetch('/api/stock/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            codes: selectedCodes,
+            year: selectedYear || undefined,
+          }),
+        });
+      } catch (err: any) {
+        // Fallback to GET on network rejection
+        const queryParams = new URLSearchParams({
+          codes: selectedCodes.join(','),
+          year: selectedYear || '',
+        });
+        res = await fetch(`/api/stock/batch?${queryParams.toString()}`, {
+          method: 'GET',
+        });
+      }
+
+      // If Cloudflare Pages or static hosting returns 405 Method Not Allowed or 404, fallback to GET
+      if (res.status === 405 || res.status === 404) {
+        const queryParams = new URLSearchParams({
+          codes: selectedCodes.join(','),
+          year: selectedYear || '',
+        });
+        res = await fetch(`/api/stock/batch?${queryParams.toString()}`, {
+          method: 'GET',
+        });
+      }
 
       if (!res.ok) {
+        if (res.status === 405) {
+          throw new Error('网络请求异常: HTTP 405 (Cloudflare 阻止 POST，已生成 functions/ 边缘函数支援)');
+        }
         throw new Error(`网络请求异常: HTTP ${res.status}`);
       }
 

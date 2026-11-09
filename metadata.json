@@ -1,6 +1,8 @@
 {
-  "name": "新浪财经股票关键指标采集与Excel分析系统",
+  "name": "新浪财经股票关键指标采集分析系统",
   "description": "自动化从新浪财经(finance.sina.com.cn)获取A股/港股关键财务指标与实时估值数据，支持批量查询、多维度对比汇总及专业Excel报表导出与数据分析。",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
