@@ -25,6 +25,8 @@ interface ThreeStatementsViewProps {
   onSelectCode: (code: string) => void;
   selectedYear: string;
   onYearChange: (year: string) => void;
+  selectedDates?: string[];
+  onDatesChange?: (dates: string[]) => void;
 }
 
 // Helper to determine quarter type label
@@ -42,6 +44,8 @@ export const ThreeStatementsView: React.FC<ThreeStatementsViewProps> = ({
   onSelectCode,
   selectedYear,
   onYearChange,
+  selectedDates: propSelectedDates,
+  onDatesChange,
 }) => {
   const [statements, setStatements] = useState<ThreeFinancialStatements | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -55,7 +59,12 @@ export const ThreeStatementsView: React.FC<ThreeStatementsViewProps> = ({
   const [queryYears, setQueryYears] = useState<string>(selectedYear || '2025');
 
   // Selected Dates State for granular column filtering
-  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [localSelectedDates, setLocalSelectedDates] = useState<string[]>([]);
+  const selectedDates = propSelectedDates !== undefined ? propSelectedDates : localSelectedDates;
+  const updateSelectedDates = (dates: string[]) => {
+    setLocalSelectedDates(dates);
+    if (onDatesChange) onDatesChange(dates);
+  };
   const [isDatePanelOpen, setIsDatePanelOpen] = useState(true);
 
   const currentStock = stocks.find(s => s.code === selectedCode) || stocks[0];
@@ -81,9 +90,11 @@ export const ThreeStatementsView: React.FC<ThreeStatementsViewProps> = ({
         if (!isMounted) return;
         if (data.success && data.data) {
           setStatements(data.data);
-          // By default, select all retrieved dates from balanceSheet
+          // If no dates selected yet or previous dates not in new dataset, initialize
           const dates = data.data.balanceSheet?.reportDates || [];
-          setSelectedDates(dates);
+          if (!selectedDates || selectedDates.length === 0) {
+            updateSelectedDates(dates);
+          }
         } else {
           setError(data.error || '获取三大报表数据失败');
         }
@@ -122,67 +133,67 @@ export const ThreeStatementsView: React.FC<ThreeStatementsViewProps> = ({
 
   // Toggle single date
   const toggleDate = (date: string) => {
-    setSelectedDates(prev => {
-      if (prev.includes(date)) {
-        if (prev.length === 1) return prev; // Keep at least 1 date
-        return prev.filter(d => d !== date);
-      } else {
-        // Maintain descending chronological order
-        return allAvailableDates.filter(d => prev.includes(d) || d === date);
-      }
-    });
+    let next: string[];
+    if (selectedDates.includes(date)) {
+      if (selectedDates.length === 1) return; // Keep at least 1 date
+      next = selectedDates.filter(d => d !== date);
+    } else {
+      // Maintain descending chronological order
+      next = allAvailableDates.filter(d => selectedDates.includes(d) || d === date);
+    }
+    updateSelectedDates(next);
   };
 
   // Quick Date Filter Actions
   const handleSelectAllDates = () => {
-    setSelectedDates([...allAvailableDates]);
+    updateSelectedDates([...allAvailableDates]);
   };
 
   const handleSelectAnnualOnly = () => {
     const annuals = allAvailableDates.filter(d => d.endsWith('12/31') || d.endsWith('12-31'));
     if (annuals.length > 0) {
-      setSelectedDates(annuals);
+      updateSelectedDates(annuals);
     } else {
-      setSelectedDates([...allAvailableDates]);
+      updateSelectedDates([...allAvailableDates]);
     }
   };
 
   const handleSelectSemiAnnualOnly = () => {
     const semis = allAvailableDates.filter(d => d.endsWith('06/30') || d.endsWith('6/30') || d.endsWith('06-30'));
     if (semis.length > 0) {
-      setSelectedDates(semis);
+      updateSelectedDates(semis);
     }
   };
 
   const handleSelectQ3Only = () => {
     const q3s = allAvailableDates.filter(d => d.endsWith('09/30') || d.endsWith('9/30') || d.endsWith('09-30'));
     if (q3s.length > 0) {
-      setSelectedDates(q3s);
+      updateSelectedDates(q3s);
     }
   };
 
   const handleSelectQ1Only = () => {
     const q1s = allAvailableDates.filter(d => d.endsWith('03/31') || d.endsWith('3/31') || d.endsWith('03-31'));
     if (q1s.length > 0) {
-      setSelectedDates(q1s);
+      updateSelectedDates(q1s);
     }
   };
 
   const handleSelectLatest4 = () => {
-    setSelectedDates(allAvailableDates.slice(0, 4));
+    updateSelectedDates(allAvailableDates.slice(0, 4));
   };
 
   const handleInvertDates = () => {
     const inverted = allAvailableDates.filter(d => !selectedDates.includes(d));
     if (inverted.length > 0) {
-      setSelectedDates(inverted);
+      updateSelectedDates(inverted);
     }
   };
 
   // Year quick presets
   const handleYearPreset = (years: string) => {
     setQueryYears(years);
-    onYearChange(years.includes(',') ? years.split(',')[0] : years);
+    onYearChange(years);
   };
 
   // Copy filtered statement

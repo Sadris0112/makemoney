@@ -11,6 +11,7 @@ interface ExportModalProps {
   stocks: StockFinancialData[];
   activeStockCode: string;
   selectedYear: string;
+  selectedDates?: string[];
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
@@ -19,6 +20,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   stocks,
   activeStockCode,
   selectedYear,
+  selectedDates,
 }) => {
   const [includeScorecard, setIncludeScorecard] = useState(true);
   const [includeStatements, setIncludeStatements] = useState(true);
@@ -53,7 +55,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
       let scorecardData: FinancialScorecardData | undefined = undefined;
       if (includeScorecard && currentStockObj) {
-        scorecardData = buildFinancialScorecard(currentStockObj, statementsData);
+        scorecardData = buildFinancialScorecard(currentStockObj, statementsData, selectedDates, targetYear);
       }
 
       await exportStocksToExcel(stocks, {
@@ -64,6 +66,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           : defaultFileName,
         statements: includeStatements ? statementsData : undefined,
         scorecard: scorecardData,
+        selectedDates: selectedDates && selectedDates.length > 0 ? selectedDates : undefined,
         includeScorecardSheet: includeScorecard,
         includeStatementSheets: includeStatements,
         includeSummarySheet: includeSummary,

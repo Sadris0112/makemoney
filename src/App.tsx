@@ -21,6 +21,7 @@ export default function App() {
     '600036', // 招商银行
   ]);
   const [selectedYear, setSelectedYear] = useState<string>('2025');
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [stocksData, setStocksData] = useState<StockFinancialData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,6 +190,8 @@ export default function App() {
                 onSelectCode={setActiveStockCode}
                 selectedYear={selectedYear}
                 onYearChange={setSelectedYear}
+                selectedDates={selectedDates}
+                onDatesChange={setSelectedDates}
               />
             )}
 
@@ -198,6 +201,9 @@ export default function App() {
                 selectedCode={activeStockCode}
                 onSelectCode={setActiveStockCode}
                 selectedYear={selectedYear}
+                onYearChange={setSelectedYear}
+                selectedDates={selectedDates}
+                onDatesChange={setSelectedDates}
               />
             )}
 
@@ -231,6 +237,7 @@ export default function App() {
         stocks={stocksData}
         activeStockCode={activeStockCode}
         selectedYear={selectedYear}
+        selectedDates={selectedDates}
       />
 
       {/* Quiet Footer */}
