@@ -6,6 +6,7 @@ import { MetricMatrix } from './components/MetricMatrix';
 import { SingleStockDetail } from './components/SingleStockDetail';
 import { FinancialDiagnosis } from './components/FinancialDiagnosis';
 import { ThreeStatementsView } from './components/ThreeStatementsView';
+import { FinancialScorecardView } from './components/FinancialScorecardView';
 import { ExportModal } from './components/ExportModal';
 import { StockFinancialData } from './types/stock';
 import { fetchStockBatchApi } from './lib/apiClient';
@@ -188,6 +189,15 @@ export default function App() {
                 onSelectCode={setActiveStockCode}
                 selectedYear={selectedYear}
                 onYearChange={setSelectedYear}
+              />
+            )}
+
+            {currentTab === 'scorecard' && (
+              <FinancialScorecardView
+                stocks={stocksData}
+                selectedCode={activeStockCode}
+                onSelectCode={setActiveStockCode}
+                selectedYear={selectedYear}
               />
             )}
 

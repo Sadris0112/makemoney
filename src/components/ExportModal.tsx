@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { StockFinancialData, ThreeFinancialStatements } from '../types/stock';
+import { StockFinancialData, ThreeFinancialStatements, FinancialScorecardData } from '../types/stock';
 import { exportStocksToExcel, exportComparisonToCSV, copyTableToClipboard } from '../utils/excelExport';
+import { buildFinancialScorecard } from '../utils/scorecardBuilder';
 import { safeFetchApi } from '../lib/apiClient';
-import { X, FileSpreadsheet, Download, Copy, Check, Info, Sparkles } from 'lucide-react';
+import { X, FileSpreadsheet, Download, Copy, Check, Info, Sparkles, Award } from 'lucide-react';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   activeStockCode,
   selectedYear,
 }) => {
+  const [includeScorecard, setIncludeScorecard] = useState(true);
   const [includeStatements, setIncludeStatements] = useState(true);
   const [includeSummary, setIncludeSummary] = useState(true);
   const [includeMatrix, setIncludeMatrix] = useState(true);
@@ -34,19 +36,24 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const currentStockObj = stocks.find(s => s.code === exportStockCode) || stocks[0];
   const stockName = currentStockObj ? currentStockObj.name : exportStockCode;
   const targetYear = modalYear || selectedYear || '2025';
-  const defaultFileName = `${stockName}_${targetYear.replace(/,/g, '_')}三大财务报表与核心指标_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx`;
+  const defaultFileName = `${stockName}_${targetYear.replace(/,/g, '_')}财务评分与三大报表_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx`;
 
   const handleExportExcel = async () => {
     setIsExporting(true);
     try {
       let statementsData: ThreeFinancialStatements | undefined = undefined;
 
-      if (includeStatements && exportStockCode) {
+      if ((includeStatements || includeScorecard) && exportStockCode) {
         // Fetch 3 statements for the chosen stock and year
         const json = await safeFetchApi(`/api/stock/statements?code=${exportStockCode}&year=${encodeURIComponent(targetYear)}`);
         if (json.success && json.data) {
           statementsData = json.data;
         }
+      }
+
+      let scorecardData: FinancialScorecardData | undefined = undefined;
+      if (includeScorecard && currentStockObj) {
+        scorecardData = buildFinancialScorecard(currentStockObj, statementsData);
       }
 
       await exportStocksToExcel(stocks, {
@@ -55,7 +62,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             ? customFileName
             : `${customFileName}.xlsx`
           : defaultFileName,
-        statements: statementsData,
+        statements: includeStatements ? statementsData : undefined,
+        scorecard: scorecardData,
+        includeScorecardSheet: includeScorecard,
         includeStatementSheets: includeStatements,
         includeSummarySheet: includeSummary,
         includeMatrixSheet: includeMatrix,
@@ -159,6 +168,25 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           <div className="flex flex-col gap-2">
             <label className="font-semibold text-slate-800">导出包含的工作表 (Sheets):</label>
             <div className="flex flex-col gap-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              {/* Image 1 & 2 identical Scorecard */}
+              <label className="flex items-start gap-2.5 cursor-pointer bg-amber-50/70 p-2.5 rounded-lg border border-amber-200">
+                <input
+                  type="checkbox"
+                  checked={includeScorecard}
+                  onChange={e => setIncludeScorecard(e.target.checked)}
+                  className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4 mt-0.5"
+                />
+                <div className="flex flex-col">
+                  <span className="font-bold text-amber-950 flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5 text-amber-600" />
+                    图片同款季度财报评分诊断表 (获利能力、财务结构、现金流量)
+                  </span>
+                  <span className="text-[11px] text-amber-800">
+                    完全符合您最新提供的 2 张图片：橙色表头 (<code>#F6A974</code>)、粉色类别列 (<code>#FAD2E1</code>)、4 季得分、当季综合评分 (如“观望/28”) 及指标明细表。
+                  </span>
+                </div>
+              </label>
+
               {/* Image identical 3 statements */}
               <label className="flex items-start gap-2.5 cursor-pointer bg-blue-50/60 p-2 rounded-lg border border-blue-200">
                 <input

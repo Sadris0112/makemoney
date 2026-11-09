@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { StockFinancialData, ThreeFinancialStatements, StatementData } from '../types/stock';
+import { StockFinancialData, ThreeFinancialStatements, StatementData, FinancialScorecardData } from '../types/stock';
 
 export interface ExcelExportOptions {
   fileName?: string;
@@ -7,6 +7,9 @@ export interface ExcelExportOptions {
   includeStatementSheets?: boolean;
   statements?: ThreeFinancialStatements;
   selectedDates?: string[]; // Custom selected reporting dates to export
+  // Options for Financial Scorecard matching user's newest images
+  includeScorecardSheet?: boolean;
+  scorecard?: FinancialScorecardData;
   // General summary options
   includeSummarySheet?: boolean;
   includeMatrixSheet?: boolean;
@@ -212,6 +215,12 @@ export async function exportStocksToExcel(
       { width: 34 },
       ...fBalance.reportDates.map(() => ({ width: 22 })),
     ];
+  }
+
+  // 1.5. 季度财报评分诊断表与指标明细 (图片一与图片二同款)
+  if (options.scorecard && options.includeScorecardSheet !== false) {
+    addStyledScorecardSheet(wb, '季度财报评分诊断表', options.scorecard);
+    addValueOnlyScorecardSheet(wb, '季度指标明细表', options.scorecard);
   }
 
   // 2. 多股关键指标横向对比总表
@@ -513,3 +522,342 @@ export async function copyStatementToClipboard(
   await navigator.clipboard.writeText(lines.join('\n'));
   return true;
 }
+
+// ==========================================
+// Financial Scorecard Exporters (Matching User's Newest Images 1 & 2)
+// ==========================================
+
+const PEACH_HEADER_FILL: ExcelJS.Fill = {
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: { argb: 'FFF6A974' }, // Peach fill from Image 2
+};
+
+const PINK_CATEGORY_FILL: ExcelJS.Fill = {
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: { argb: 'FFFAD2E1' }, // Pink fill from Image 2
+};
+
+const BLUE_SUMMARY_FILL: ExcelJS.Fill = {
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: { argb: 'FF5B9BD5' }, // Blue fill from Image 2
+};
+
+const SOLID_BLACK_BORDER: Partial<ExcelJS.Borders> = {
+  top: { style: 'thin', color: { argb: 'FF1E293B' } },
+  left: { style: 'thin', color: { argb: 'FF1E293B' } },
+  bottom: { style: 'thin', color: { argb: 'FF1E293B' } },
+  right: { style: 'thin', color: { argb: 'FF1E293B' } },
+};
+
+export function addStyledScorecardSheet(
+  wb: ExcelJS.Workbook,
+  sheetName: string,
+  scorecard: FinancialScorecardData
+) {
+  const ws = wb.addWorksheet(sheetName, {
+    views: [{ showGridLines: true }],
+  });
+
+  const quarters = scorecard.quarters;
+
+  // Header Row 1: ["类别", "评分项目", "2025Q4", "", "2025Q3", "", "2025Q2", "", "2025Q1", ""]
+  const hRow1Values: (string | number)[] = ['类别', '评分项目'];
+  quarters.forEach(q => {
+    hRow1Values.push(q, '');
+  });
+  const row1 = ws.addRow(hRow1Values);
+  row1.height = 24;
+
+  // Header Row 2: ["", "", "%", "得分", "%", "得分", "%", "得分", "%", "得分"]
+  const hRow2Values: (string | number)[] = ['', ''];
+  quarters.forEach(() => {
+    hRow2Values.push('%', '得分');
+  });
+  const row2 = ws.addRow(hRow2Values);
+  row2.height = 20;
+
+  // Merge headers
+  ws.mergeCells(1, 1, 2, 1); // 类别
+  ws.mergeCells(1, 2, 2, 2); // 评分项目
+  quarters.forEach((_, qIdx) => {
+    const colStart = 3 + qIdx * 2;
+    ws.mergeCells(1, colStart, 1, colStart + 1);
+  });
+
+  // Style header rows
+  [row1, row2].forEach(r => {
+    r.eachCell(cell => {
+      cell.fill = PEACH_HEADER_FILL;
+      cell.font = { name: 'Microsoft YaHei', size: 10, bold: true, color: { argb: 'FF000000' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = SOLID_BLACK_BORDER;
+    });
+  });
+
+  // Group items by category
+  const categoriesList = ['获利能力', '财务结构', '现金流量'] as const;
+  let currentRowIdx = 3;
+
+  categoriesList.forEach(cat => {
+    const catItems = scorecard.items.filter(it => it.category === cat);
+    if (catItems.length === 0) return;
+
+    const startRow = currentRowIdx;
+    catItems.forEach(item => {
+      const rowVals: (string | number)[] = [item.category, item.name];
+      quarters.forEach((_, qIdx) => {
+        const val = item.quarterValues[qIdx];
+        const score = item.quarterScores[qIdx];
+        rowVals.push(typeof val === 'number' ? val : 0, score);
+      });
+
+      const dRow = ws.addRow(rowVals);
+      dRow.height = 21;
+
+      dRow.eachCell((cell, colNum) => {
+        cell.border = SOLID_BLACK_BORDER;
+        cell.font = { name: 'Microsoft YaHei', size: 10 };
+
+        if (colNum === 1) {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.fill = PINK_CATEGORY_FILL;
+          cell.font = { name: 'Microsoft YaHei', size: 10, bold: true };
+        } else if (colNum === 2) {
+          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+          if (item.isRedLabel) {
+            cell.font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FFFF0000' }, bold: true };
+          }
+        } else if (colNum % 2 === 1) {
+          // % column
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          cell.numFmt = '#,##0.00';
+        } else {
+          // 得分 column
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.font = { name: 'Microsoft YaHei', size: 10, bold: true };
+        }
+      });
+
+      currentRowIdx++;
+    });
+
+    const endRow = currentRowIdx - 1;
+    if (endRow > startRow) {
+      ws.mergeCells(startRow, 1, endRow, 1);
+    }
+  });
+
+  // Bottom Row: 当季财报评分结果--
+  const summaryRowVals: (string | number)[] = ['当季财报评分结果--', ''];
+  quarters.forEach((_, qIdx) => {
+    summaryRowVals.push(scorecard.quarterRatings[qIdx] || '观望', scorecard.quarterTotalScores[qIdx] || 28);
+  });
+  const summaryRow = ws.addRow(summaryRowVals);
+  summaryRow.height = 26;
+
+  // Merge A & B for title
+  ws.mergeCells(currentRowIdx, 1, currentRowIdx, 2);
+
+  summaryRow.eachCell((cell, colNum) => {
+    cell.border = SOLID_BLACK_BORDER;
+    cell.font = { name: 'Microsoft YaHei', size: 11, bold: true };
+
+    if (colNum === 1 || colNum === 2) {
+      cell.fill = BLUE_SUMMARY_FILL;
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    } else if (colNum % 2 === 1) {
+      // Rating badge cell (观望, etc.)
+      const rating = String(cell.value);
+      let argbColor = 'FFFBBF24'; // Yellow
+      if (rating === '优秀') argbColor = 'FF86EFAC';
+      else if (rating === '预警') argbColor = 'FFEF4444';
+
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: argbColor },
+      };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    } else {
+      // Total score cell
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.font = { name: 'Microsoft YaHei', size: 12, bold: true };
+    }
+  });
+
+  // Columns width
+  ws.columns = [
+    { width: 14 }, // 类别
+    { width: 28 }, // 评分项目
+    ...quarters.flatMap(() => [{ width: 14 }, { width: 10 }]),
+  ];
+
+  return ws;
+}
+
+export function addValueOnlyScorecardSheet(
+  wb: ExcelJS.Workbook,
+  sheetName: string,
+  scorecard: FinancialScorecardData
+) {
+  const ws = wb.addWorksheet(sheetName, {
+    views: [{ showGridLines: true }],
+  });
+
+  const quarters = scorecard.quarters;
+
+  // Header: ["类别", "评分项目", "2025Q4", "2025Q3", "2025Q2", "2025Q1"]
+  const hRow = ws.addRow(['类别', '评分项目', ...quarters]);
+  hRow.height = 25;
+  hRow.eachCell((cell, colNum) => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFD4D8F0' }, // Lavender from Image 1
+    };
+    cell.font = { name: 'Microsoft YaHei', size: 10, bold: true, color: { argb: 'FF1E3A8A' } };
+    cell.alignment = { vertical: 'middle', horizontal: colNum <= 2 ? 'center' : 'center' };
+    cell.border = SOLID_BLACK_BORDER;
+  });
+
+  let currentRowIdx = 2;
+  const categoriesList = ['获利能力', '财务结构', '现金流量'] as const;
+
+  categoriesList.forEach(cat => {
+    const catItems = scorecard.items.filter(it => it.category === cat);
+    if (catItems.length === 0) return;
+
+    const startRow = currentRowIdx;
+    catItems.forEach(item => {
+      const rowVals: (string | number)[] = [item.category, item.name];
+      quarters.forEach((_, qIdx) => {
+        const val = item.quarterValues[qIdx];
+        rowVals.push(typeof val === 'number' ? val : 0);
+      });
+
+      const dRow = ws.addRow(rowVals);
+      dRow.height = 21;
+
+      dRow.eachCell((cell, colNum) => {
+        cell.border = SOLID_BLACK_BORDER;
+        cell.font = { name: 'Microsoft YaHei', size: 10 };
+
+        if (colNum === 1) {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        } else if (colNum === 2) {
+          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+          if (item.isRedLabel) {
+            cell.font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FFFF0000' }, bold: true };
+          }
+        } else {
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          cell.numFmt = '#,##0.00';
+        }
+      });
+
+      currentRowIdx++;
+    });
+
+    const endRow = currentRowIdx - 1;
+    if (endRow > startRow) {
+      ws.mergeCells(startRow, 1, endRow, 1);
+    }
+  });
+
+  ws.columns = [
+    { width: 14 },
+    { width: 28 },
+    ...quarters.map(() => ({ width: 16 })),
+  ];
+
+  return ws;
+}
+
+export async function exportScorecardToExcel(
+  scorecard: FinancialScorecardData,
+  options: { fileName?: string; viewMode?: 'with_score' | 'value_only' } = {}
+): Promise<void> {
+  const wb = new ExcelJS.Workbook();
+
+  // Sheet 1: 评分与得分综合表 (图片二同款)
+  addStyledScorecardSheet(wb, '季度财报评分诊断表', scorecard);
+
+  // Sheet 2: 季度指标明细 (图片一同款)
+  addValueOnlyScorecardSheet(wb, '季度指标明细表', scorecard);
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const fileName = options.fileName || `${scorecard.stockName}_季度财报评分诊断_${Date.now()}.xlsx`;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function copyScorecardToClipboard(
+  scorecard: FinancialScorecardData,
+  viewMode: 'with_score' | 'value_only' = 'with_score'
+): Promise<boolean> {
+  if (!scorecard || !scorecard.items) return false;
+
+  const lines: string[] = [];
+
+  if (viewMode === 'with_score') {
+    // Header 1
+    const h1 = ['类别', '评分项目', ...scorecard.quarters.flatMap(q => [q, ''])].join('\t');
+    const h2 = ['', '', ...scorecard.quarters.flatMap(() => ['%', '得分'])].join('\t');
+    lines.push(h1, h2);
+
+    scorecard.items.forEach(it => {
+      const vals = [
+        it.category,
+        it.name,
+        ...scorecard.quarters.flatMap((_, qIdx) => {
+          const v = it.quarterValues[qIdx];
+          const s = it.quarterScores[qIdx];
+          const vStr = typeof v === 'number' ? v.toFixed(2) : String(v || '0.00');
+          return [vStr, String(s)];
+        }),
+      ];
+      lines.push(vals.join('\t'));
+    });
+
+    // Summary row
+    const sumLine = [
+      '当季财报评分结果--',
+      '',
+      ...scorecard.quarters.flatMap((_, qIdx) => [
+        scorecard.quarterRatings[qIdx] || '观望',
+        String(scorecard.quarterTotalScores[qIdx] || 28),
+      ]),
+    ].join('\t');
+    lines.push(sumLine);
+  } else {
+    // Header
+    const h = ['类别', '评分项目', ...scorecard.quarters].join('\t');
+    lines.push(h);
+
+    scorecard.items.forEach(it => {
+      const vals = [
+        it.category,
+        it.name,
+        ...scorecard.quarters.map((_, qIdx) => {
+          const v = it.quarterValues[qIdx];
+          return typeof v === 'number' ? v.toFixed(2) : String(v || '0.00');
+        }),
+      ];
+      lines.push(vals.join('\t'));
+    });
+  }
+
+  await navigator.clipboard.writeText(lines.join('\n'));
+  return true;
+}
+

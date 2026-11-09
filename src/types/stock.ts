@@ -94,3 +94,25 @@ export interface ThreeFinancialStatements {
   cashFlowStatement: StatementData;
 }
 
+export interface ScorecardItem {
+  id: string;
+  category: '获利能力' | '财务结构' | '现金流量';
+  name: string;
+  unit: string;
+  isRedLabel?: boolean;
+  maxScore: number;
+  quarterValues: (number | string)[]; // e.g. [31.2, 32.5, 30.1, 29.8]
+  quarterScores: number[]; // e.g. [0, 3, 3, 3]
+}
+
+export interface FinancialScorecardData {
+  stockCode: string;
+  stockName: string;
+  quarters: string[]; // e.g. ["2025Q4", "2025Q3", "2025Q2", "2025Q1"]
+  reportDates: string[]; // e.g. ["2025/12/31", "2025/09/30", "2025/6/30", "2025/3/31"]
+  items: ScorecardItem[];
+  quarterTotalScores: number[]; // e.g. [28, 28, 28, 28]
+  quarterRatings: string[]; // e.g. ["观望", "观望", "观望", "观望"]
+}
+
+

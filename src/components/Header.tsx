@@ -48,6 +48,16 @@ export const Header: React.FC<HeaderProps> = ({
           三大财务报表 (图片同款)
         </button>
         <button
+          onClick={() => onTabChange('scorecard')}
+          className={`px-3 py-1.5 rounded-md transition-colors whitespace-nowrap ${
+            currentTab === 'scorecard'
+              ? 'bg-blue-600 text-white shadow-xs font-semibold'
+              : 'text-slate-700 hover:text-slate-900 font-medium'
+          }`}
+        >
+          季度评分诊断 (图片同款)
+        </button>
+        <button
           onClick={() => onTabChange('comparison')}
           className={`px-3 py-1.5 rounded-md transition-colors whitespace-nowrap ${
             currentTab === 'comparison'
