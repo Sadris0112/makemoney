@@ -3,10 +3,44 @@
  * Safely parses JSON and guards against static SPA 200/404 HTML fallback responses
  * (which trigger "Unexpected token '<', <!doctype... is not valid JSON").
  */
-export async function safeFetchApi<T = any>(url: string, options?: RequestInit): Promise<T> {
+
+const API_BASE_STORAGE_KEY = 'SINA_STOCK_API_BASE_URL';
+
+export function getCustomApiBaseUrl(): string {
+  try {
+    return localStorage.getItem(API_BASE_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setCustomApiBaseUrl(url: string): void {
+  try {
+    const clean = url.trim().replace(/\/+$/, '');
+    if (clean) {
+      localStorage.setItem(API_BASE_STORAGE_KEY, clean);
+    } else {
+      localStorage.removeItem(API_BASE_STORAGE_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function resolveApiUrl(path: string): string {
+  const customBase = getCustomApiBaseUrl();
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (customBase) {
+    return `${customBase}${cleanPath}`;
+  }
+  return cleanPath;
+}
+
+export async function safeFetchApi<T = any>(path: string, options?: RequestInit): Promise<T> {
+  const fullUrl = resolveApiUrl(path);
   let res: Response;
   try {
-    res = await fetch(url, options);
+    res = await fetch(fullUrl, options);
   } catch (netErr: any) {
     throw new Error(`网络连接失败: ${netErr.message || '请检查网络连接'}`);
   }
@@ -23,7 +57,7 @@ export async function safeFetchApi<T = any>(url: string, options?: RequestInit):
     trimmed.startsWith('<?xml')
   ) {
     throw new Error(
-      `API 服务未响应 JSON（返回了 HTML 页面）。这是因为 Cloudflare Pages 尚未加载边缘函数或正在使用纯静态託管。本次構建已為您生成 dist/_worker.js 與 functions/，重新部署即可在邊緣端正常執行。`
+      `API 服务未响应 JSON（返回了 HTML 页面）。这是因为 Cloudflare Pages 尚未加载边缘函数或正在使用纯静态託管。请在 Cloudflare Pages 设置中确认「Build output directory」设为 dist，且包含 _worker.js，或者连接 Git 仓库自动部署。`
     );
   }
 
@@ -45,9 +79,11 @@ export async function safeFetchApi<T = any>(url: string, options?: RequestInit):
  * Fetch batch financial data with automatic POST -> GET fallback
  */
 export async function fetchStockBatchApi(codes: string[], year?: string): Promise<any> {
+  const postUrl = resolveApiUrl('/api/stock/batch');
+
   // 1. First attempt POST
   try {
-    const postRes = await fetch('/api/stock/batch', {
+    const postRes = await fetch(postUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codes, year: year || undefined }),
