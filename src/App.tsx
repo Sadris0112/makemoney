@@ -8,6 +8,7 @@ import { FinancialDiagnosis } from './components/FinancialDiagnosis';
 import { ThreeStatementsView } from './components/ThreeStatementsView';
 import { ExportModal } from './components/ExportModal';
 import { StockFinancialData } from './types/stock';
+import { fetchStockBatchApi } from './lib/apiClient';
 import { AlertCircle, RefreshCw, Layers, TrendingUp, ShieldCheck, DollarSign, FileSpreadsheet } from 'lucide-react';
 
 export default function App() {
@@ -53,7 +54,7 @@ export default function App() {
     return map;
   }, [stocksData]);
 
-  // Fetch batch financial data from backend API
+  // Fetch batch financial data from backend API with automatic fallback
   const handleFetchData = useCallback(async () => {
     if (selectedCodes.length === 0) return;
 
@@ -61,46 +62,7 @@ export default function App() {
     setError(null);
 
     try {
-      let res: Response;
-      try {
-        res = await fetch('/api/stock/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            codes: selectedCodes,
-            year: selectedYear || undefined,
-          }),
-        });
-      } catch (err: any) {
-        // Fallback to GET on network rejection
-        const queryParams = new URLSearchParams({
-          codes: selectedCodes.join(','),
-          year: selectedYear || '',
-        });
-        res = await fetch(`/api/stock/batch?${queryParams.toString()}`, {
-          method: 'GET',
-        });
-      }
-
-      // If Cloudflare Pages or static hosting returns 405 Method Not Allowed or 404, fallback to GET
-      if (res.status === 405 || res.status === 404) {
-        const queryParams = new URLSearchParams({
-          codes: selectedCodes.join(','),
-          year: selectedYear || '',
-        });
-        res = await fetch(`/api/stock/batch?${queryParams.toString()}`, {
-          method: 'GET',
-        });
-      }
-
-      if (!res.ok) {
-        if (res.status === 405) {
-          throw new Error('网络请求异常: HTTP 405 (Cloudflare 阻止 POST，已生成 functions/ 边缘函数支援)');
-        }
-        throw new Error(`网络请求异常: HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
+      const data = await fetchStockBatchApi(selectedCodes, selectedYear);
       if (!data.success) {
         throw new Error(data.error || '获取股票财务数据失败');
       }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Plus, X, Layers, Sparkles, ChevronDown, Calendar, AlertCircle } from 'lucide-react';
 import { StockSuggestion } from '../types/stock';
+import { safeFetchApi } from '../lib/apiClient';
 
 interface StockSearchInputProps {
   selectedCodes: string[];
@@ -77,8 +78,7 @@ export const StockSearchInput: React.FC<StockSearchInputProps> = ({
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/stock/suggest?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
+        const data = await safeFetchApi(`/api/stock/suggest?q=${encodeURIComponent(q)}`);
         if (data.success && Array.isArray(data.list) && data.list.length > 0) {
           // Filter to A-shares or relevant Chinese stocks
           setSuggestions(data.list.slice(0, 8));

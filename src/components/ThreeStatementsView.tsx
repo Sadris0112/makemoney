@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ThreeFinancialStatements, StatementData, StockFinancialData } from '../types/stock';
 import { exportStocksToExcel, copyStatementToClipboard, filterStatementByDates } from '../utils/excelExport';
+import { safeFetchApi } from '../lib/apiClient';
 import {
   Download,
   Copy,
@@ -75,8 +76,7 @@ export const ThreeStatementsView: React.FC<ThreeStatementsViewProps> = ({
     setIsLoading(true);
     setError(null);
 
-    fetch(`/api/stock/statements?code=${targetCode}&year=${encodeURIComponent(queryYears)}`)
-      .then(res => res.json())
+    safeFetchApi(`/api/stock/statements?code=${targetCode}&year=${encodeURIComponent(queryYears)}`)
       .then(data => {
         if (!isMounted) return;
         if (data.success && data.data) {

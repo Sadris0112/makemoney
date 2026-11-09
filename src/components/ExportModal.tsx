@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StockFinancialData, ThreeFinancialStatements } from '../types/stock';
 import { exportStocksToExcel, exportComparisonToCSV, copyTableToClipboard } from '../utils/excelExport';
+import { safeFetchApi } from '../lib/apiClient';
 import { X, FileSpreadsheet, Download, Copy, Check, Info, Sparkles } from 'lucide-react';
 
 interface ExportModalProps {
@@ -42,8 +43,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
       if (includeStatements && exportStockCode) {
         // Fetch 3 statements for the chosen stock and year
-        const res = await fetch(`/api/stock/statements?code=${exportStockCode}&year=${encodeURIComponent(targetYear)}`);
-        const json = await res.json();
+        const json = await safeFetchApi(`/api/stock/statements?code=${exportStockCode}&year=${encodeURIComponent(targetYear)}`);
         if (json.success && json.data) {
           statementsData = json.data;
         }
