@@ -336,12 +336,12 @@ export const BALANCE_SHEET_TEMPLATE_ROWS = [
   { label: '应收账款', matchers: ['应收账款', '应收票据及应收账款'] },
   { label: '存货', matchers: ['存货'] },
   { label: '预付款项', matchers: ['预付款项'] },
-  { label: '其他应收款', matchers: ['其他应收款', '其他应收款(合计)'] },
+  { label: '其他应收款', matchers: ['其他应收款(合计)', '其他应收款（合计）', '其他应收款合计', '其他应收款'] },
   { label: '流动资产', matchers: ['流动资产合计', '流动资产'] },
   { label: '可出售金融资产', matchers: ['可供出售金融资产', '交易性金融资产'] },
   { label: '无形资产', matchers: ['无形资产'] },
-  { label: '固定资产', matchers: ['固定资产净额', '固定资产及清理(合计)', '固定资产'] },
-  { label: '在建工程', matchers: ['在建工程', '在建工程(合计)'] },
+  { label: '固定资产', matchers: ['固定资产及清理(合计)', '固定资产及清理（合计）', '固定资产及清理合计', '固定资产及清理', '固定资产合计', '固定资产净额', '固定资产'] },
+  { label: '在建工程', matchers: ['在建工程(合计)', '在建工程（合计）', '在建工程合计', '在建工程'] },
   { label: '商誉', matchers: ['商誉'] },
   { label: '非流动资产', matchers: ['非流动资产合计', '非流动资产'] },
   { label: '资产总额', matchers: ['资产总计', '资产总额'] },
@@ -539,14 +539,37 @@ export async function fetchThreeStatements(
   ): StatementData {
     const rows: StatementRow[] = templateRows.map(item => {
       let matchedKey = '';
+      // 1. Direct key match following exact matcher priority order
       for (const matcher of item.matchers) {
         if (dataMap[matcher]) {
           matchedKey = matcher;
           break;
         }
       }
+      // 2. Normalized match (ignoring parentheses variants e.g. （） vs ())
       if (!matchedKey) {
-        const foundKey = Object.keys(dataMap).find(k => k.includes(item.label) || item.matchers.some(m => k.includes(m)));
+        for (const matcher of item.matchers) {
+          const norm = matcher.replace(/[\s()（）]/g, '');
+          const found = Object.keys(dataMap).find(k => k.replace(/[\s()（）]/g, '') === norm);
+          if (found) {
+            matchedKey = found;
+            break;
+          }
+        }
+      }
+      // 3. Substring match by matchers in order of priority
+      if (!matchedKey) {
+        for (const matcher of item.matchers) {
+          const found = Object.keys(dataMap).find(k => k.includes(matcher));
+          if (found) {
+            matchedKey = found;
+            break;
+          }
+        }
+      }
+      // 4. Fallback to row label
+      if (!matchedKey) {
+        const foundKey = Object.keys(dataMap).find(k => k.includes(item.label));
         if (foundKey) matchedKey = foundKey;
       }
 
